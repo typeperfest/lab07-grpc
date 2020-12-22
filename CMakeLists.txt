@@ -54,7 +54,7 @@ set(PROTO_GENERATED_GRPC_SOURCES
   "${CMAKE_CURRENT_BINARY_DIR}/suggest.grpc.pb.cc"
   "${CMAKE_CURRENT_BINARY_DIR}/google/api/annotations.grpc.pb.cc"
   "${CMAKE_CURRENT_BINARY_DIR}/google/api/http.grpc.pb.cc"
-  "${CMAKE_CURRENT_BINARY_DIR}/google/rpc/status.grpc.pb.cc" sources/suggest.cpp include/utils.h sources/utils.cpp)
+  "${CMAKE_CURRENT_BINARY_DIR}/google/rpc/status.grpc.pb.cc" sources/suggest.cpp)
 
 set(PROTO_GENERATED_GRPC_HEADERS
   "${CMAKE_CURRENT_BINARY_DIR}/suggest.grpc.pb.h"
@@ -89,7 +89,6 @@ add_custom_command(
 add_executable(grpc_service
         ${CMAKE_CURRENT_SOURCE_DIR}/sources/main.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/sources/suggest.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/sources/utils.cpp
         ${PROTO_GENERATED_SOURCES}
         ${PROTO_GENERATED_GRPC_SOURCES})
 
@@ -104,10 +103,8 @@ target_link_libraries(grpc_service
         nlohmann_json::nlohmann_json
         )
 
-# tests
 add_executable(tests
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/test.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/sources/utils.cpp
         ${PROTO_GENERATED_SOURCES}
         )
 

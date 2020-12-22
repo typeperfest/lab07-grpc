@@ -1,6 +1,6 @@
 
 #include "suggest_service.hpp"
-#include "utils.h"
+#include "nlohmann/json.hpp"
 
 #include <grpcpp/health_check_service_interface.h>
 #include <grpcpp/ext/proto_server_reflection_plugin.h>
@@ -23,47 +23,58 @@ using suggest::Suggest;
 using suggest::Suggestion;
 using nlohmann::json;
 
+namespace suggest {
+  void from_json(const nlohmann::json& json_file, Suggestion& Sugg) {
+    Sugg.set_text(json_file.at("name").get<std::string>());
+    Sugg.set_position(json_file.at("cost").get<uint32_t>());
+  }
+}
+
 SuggestServiceImpl::SuggestServiceImpl() {
-  std::thread([this]() -> void {
+  std::thread sync_thread([this]() {
     std::ifstream file;
     while (true) {
       file.open("suggestions.json");
-      std::unique_lock<std::shared_mutex> lock(collectionMutex_);
-      file >> collection_;
+      std::unique_lock<std::shared_mutex> lock(mutex);
+      file >> collection;
+      std::cout << "updated" << std::endl;
       lock.unlock();
-      std::cout << "sleeping for 15 min" << std::endl;
       file.close();
       std::this_thread::sleep_for(std::chrono::minutes(15));
     }
-  }).detach();
+  });
+  sync_thread.detach();
+}
+
+SuggestServer::SuggestServer(const std::string& server_address) {
+  Run(server_address);
 }
 
 Status SuggestServiceImpl::Input(ServerContext* context,
                                  const SuggestRequest* request,
                                  SuggestResponse* response) {
   google::protobuf::RepeatedPtrField<suggest::Suggestion> suggestions;
-  std::shared_lock<std::shared_mutex> lock(collectionMutex_);
-  suggestions.Reserve(collection_.size());
-  for (const auto& record : collection_) {
-    if (record.at("id").get<std::string>() == request->input()) {
+  std::shared_lock<std::shared_mutex> lock(mutex);
+  suggestions.Reserve(collection.size());
+  for (const auto& iter : collection) {
+    if (iter.at("id").get<std::string>() == request->input()) {
       auto suggestion = suggestions.Add();
-      *suggestion = record.get<suggest::Suggestion>();
+      *suggestion = iter.get<suggest::Suggestion>();
     }
   }
   lock.unlock();
   std::sort(suggestions.begin(), suggestions.end(),
-            [](const Suggestion& a, const Suggestion& b) -> bool {
+            [](const Suggestion& a, const Suggestion& b) {
               return a.position() < b.position();
             });
-  uint32_t position = 1, cost = 0;
-  using SizeType =
-  typename google::protobuf::RepeatedPtrField<Suggestion>::size_type;
-  for (SizeType i = 0; i != suggestions.size(); ++i) {
-    if (cost != suggestions[i].position()) {
-      suggestions[i].set_position(position++);
-      cost = suggestions[i].position();
+  uint32_t position = 0, cost = 0;
+  for (auto& iter : suggestions) {
+    if (cost != iter.position()) {
+      position++;
+      iter.set_position(position);
+      cost = iter.position();
     } else {
-      suggestions[i].set_position(position);
+      iter.set_position(position);
     }
   }
   *response->mutable_suggestions() = suggestions;

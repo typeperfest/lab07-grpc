@@ -22,16 +22,16 @@ class SuggestServiceImpl final : public suggest::Suggest::Service {
   grpc::Status Input(grpc::ServerContext* context,
                      const suggest::SuggestRequest* request,
                      suggest::SuggestResponse* response) override;
-  std::shared_mutex collectionMutex_;
-  nlohmann::json collection_;
-}; // class SuggestServiceImpl
+  std::shared_mutex mutex;
+  nlohmann::json collection;
+};
 
 class SuggestServer final {
  public:
-  inline SuggestServer() noexcept = default;
+  SuggestServer(const std::string& server_address);
   void Run(const std::string& server_address);
  private:
   SuggestServiceImpl service;
-}; // class SuggestService
+};
 
 #endif // SOURCES_SUGGEST_SERVICE_HPP_
