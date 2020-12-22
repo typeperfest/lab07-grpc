@@ -25,8 +25,8 @@ using nlohmann::json;
 
 namespace suggest {
   void from_json(const nlohmann::json& json_file, Suggestion& Sugg) {
-    Sugg.set_text(json_file.at("name").get<std::string>());
     Sugg.set_position(json_file.at("cost").get<uint32_t>());
+    Sugg.set_text(json_file.at("name").get<std::string>());
   }
 }
 
@@ -46,10 +46,6 @@ SuggestServiceImpl::SuggestServiceImpl() {
   sync_thread.detach();
 }
 
-SuggestServer::SuggestServer(const std::string& server_address) {
-  Run(server_address);
-}
-
 Status SuggestServiceImpl::Input(ServerContext* context,
                                  const SuggestRequest* request,
                                  SuggestResponse* response) {
@@ -58,8 +54,7 @@ Status SuggestServiceImpl::Input(ServerContext* context,
   suggestions.Reserve(collection.size());
   for (const auto& iter : collection) {
     if (iter.at("id").get<std::string>() == request->input()) {
-      auto suggestion = suggestions.Add();
-      *suggestion = iter.get<suggest::Suggestion>();
+      suggestions.Add(iter.get<suggest::Suggestion>());
     }
   }
   lock.unlock();

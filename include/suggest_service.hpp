@@ -28,7 +28,7 @@ class SuggestServiceImpl final : public suggest::Suggest::Service {
 
 class SuggestServer final {
  public:
-  SuggestServer(const std::string& server_address);
+  SuggestServer() = default;
   void Run(const std::string& server_address);
  private:
   SuggestServiceImpl service;
