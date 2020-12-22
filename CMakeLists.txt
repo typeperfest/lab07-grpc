@@ -21,7 +21,7 @@ HunterGate(
         FILEPATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/config.cmake"
 )
 
-project(echoservice)
+project(suggestservice)
 string(APPEND CMAKE_CXX_FLAGS " -pedantic -Werror -Wall -Wextra")
 string(APPEND CMAKE_CXX_FLAGS " -Wno-unused-command-line-argument -Wno-unused-parameter")
 string(APPEND CMAKE_CXX_FLAGS " -Wshadow -Wnon-virtual-dtor")
@@ -35,26 +35,29 @@ find_package(gRPC CONFIG REQUIRED)
 hunter_add_package(Protobuf)
 find_package(Protobuf CONFIG REQUIRED)
 
+hunter_add_package(nlohmann_json)
+find_package(nlohmann_json CONFIG REQUIRED)
+
 set(PROTO_GENERATED_SOURCES
-  "${CMAKE_CURRENT_BINARY_DIR}/echo.pb.cc"
+  "${CMAKE_CURRENT_BINARY_DIR}/suggest.pb.cc"
   "${CMAKE_CURRENT_BINARY_DIR}/google/api/annotations.pb.cc"
   "${CMAKE_CURRENT_BINARY_DIR}/google/api/http.pb.cc"
   "${CMAKE_CURRENT_BINARY_DIR}/google/rpc/status.pb.cc")
 
 set(PROTO_GENERATED_HEADERS
-  "${CMAKE_CURRENT_BINARY_DIR}/echo.pb.h"
+  "${CMAKE_CURRENT_BINARY_DIR}/suggest.pb.h"
   "${CMAKE_CURRENT_BINARY_DIR}/google/api/annotations.pb.h"
   "${CMAKE_CURRENT_BINARY_DIR}/google/api/http.pb.h"
   "${CMAKE_CURRENT_BINARY_DIR}/google/rpc/status.pb.h")
 
 set(PROTO_GENERATED_GRPC_SOURCES
-  "${CMAKE_CURRENT_BINARY_DIR}/echo.grpc.pb.cc"
+  "${CMAKE_CURRENT_BINARY_DIR}/suggest.grpc.pb.cc"
   "${CMAKE_CURRENT_BINARY_DIR}/google/api/annotations.grpc.pb.cc"
   "${CMAKE_CURRENT_BINARY_DIR}/google/api/http.grpc.pb.cc"
-  "${CMAKE_CURRENT_BINARY_DIR}/google/rpc/status.grpc.pb.cc")
+  "${CMAKE_CURRENT_BINARY_DIR}/google/rpc/status.grpc.pb.cc" sources/suggest.cpp include/utils.h sources/utils.cpp)
 
 set(PROTO_GENERATED_GRPC_HEADERS
-  "${CMAKE_CURRENT_BINARY_DIR}/echo.grpc.pb.h"
+  "${CMAKE_CURRENT_BINARY_DIR}/suggest.grpc.pb.h"
   "${CMAKE_CURRENT_BINARY_DIR}/google/api/annotations.grpc.pb.h"
   "${CMAKE_CURRENT_BINARY_DIR}/google/api/http.grpc.pb.h"
   "${CMAKE_CURRENT_BINARY_DIR}/google/rpc/status.grpc.pb.h")
@@ -63,7 +66,7 @@ find_program(PROTOBUF_PROTOC protoc)
 find_program(GRPC_CPP_PLUGIN_EXECUTABLE grpc_cpp_plugin)
 
 set(PROTO_FILES
-  "${CMAKE_CURRENT_SOURCE_DIR}/protos/echo.proto"
+  "${CMAKE_CURRENT_SOURCE_DIR}/protos/suggest.proto"
   "${CMAKE_CURRENT_SOURCE_DIR}/protos/google/api/annotations.proto"
   "${CMAKE_CURRENT_SOURCE_DIR}/protos/google/api/http.proto"
   "${CMAKE_CURRENT_SOURCE_DIR}/protos/google/rpc/status.proto")
@@ -84,12 +87,56 @@ add_custom_command(
       DEPENDS ${PROTO_FILES})
 
 add_executable(grpc_service
-  ${CMAKE_CURRENT_SOURCE_DIR}/sources/main.cpp
-  ${PROTO_GENERATED_SOURCES}
-  ${PROTO_GENERATED_GRPC_SOURCES})
+        ${CMAKE_CURRENT_SOURCE_DIR}/sources/main.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/sources/suggest.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/sources/utils.cpp
+        ${PROTO_GENERATED_SOURCES}
+        ${PROTO_GENERATED_GRPC_SOURCES})
 
-target_include_directories(grpc_service PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+target_include_directories(grpc_service
+        PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        )
 
 target_link_libraries(grpc_service
-  gRPC::grpc++ gRPC::grpc++_reflection
-  protobuf::libprotobuf)
+        PRIVATE gRPC::grpc++ gRPC::grpc++_reflection
+        protobuf::libprotobuf
+        nlohmann_json::nlohmann_json
+        )
+
+# tests
+add_executable(tests
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/test.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/sources/utils.cpp
+        ${PROTO_GENERATED_SOURCES}
+        )
+
+target_link_libraries(tests
+        PRIVATE GTest::gtest_main
+        protobuf::libprotobuf
+        nlohmann_json::nlohmann_json
+        )
+
+target_include_directories(tests
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/sources
+        ${CMAKE_CURRENT_BINARY_DIR}
+        )
+
+enable_testing()
+add_test(NAME unit_tests COMMAND tests)
+
+if(BUILD_COVERAGE)
+    function(ENABLE_PROJECT_COVERAGE PROJECT)
+        target_compile_options(${PROJECT} PRIVATE --coverage)
+        target_link_libraries(${PROJECT} PRIVATE --coverage)
+        add_coverage(${PROJECT})
+    endfunction()
+
+    set(ENABLE_COVERAGE ON CACHE BOOL "Enable coverage build." FORCE)
+    list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+    find_package(codecov)
+    enable_project_coverage(grpc_service)
+    enable_project_coverage(tests)
+    list(APPEND LCOV_REMOVE_PATTERNS "'${PROJECT_SOURCE_DIR}/tests/*'")
+    coverage_evaluate()
+endif()
